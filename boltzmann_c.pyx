@@ -89,13 +89,13 @@ class Universe(object):
 
     def compute_funcs(self, preload=False):
         self.Thermal_sln()
-        backgrounds = np.loadtxt(path + '/precomputed/LCDM_background.dat')
+#        backgrounds = np.loadtxt(path + '/precomputed/LCDM_background.dat')
 #        self.Tb = interp1d(np.log10(backgrounds[:,0]), np.log10(backgrounds[:,3]), kind='linear',
 #                            bounds_error=False, fill_value='extrapolate')
-        short_b_xe = backgrounds[backgrounds[:,0] < 1., 2]
-        short_b = backgrounds[backgrounds[:,0] < 1., 0]
-        self.Xe = interp1d(np.log10(short_b), np.log10(short_b_xe), kind='cubic',
-                            bounds_error=False, fill_value=np.log10(1.16380))
+#        short_b_xe = backgrounds[backgrounds[:,0] < 1., 2]
+#        short_b = backgrounds[backgrounds[:,0] < 1., 0]
+#        self.Xe = interp1d(np.log10(short_b), np.log10(short_b_xe), kind='cubic',
+#                            bounds_error=False, fill_value=np.log10(1.16380))
 #        self.Csnd_them = interp1d(np.log10(backgrounds[:,0]), backgrounds[:,4], kind='cubic',
 #                          bounds_error=False, fill_value='extrapolate')
         cdef int i
@@ -138,6 +138,7 @@ class Universe(object):
             os.remove(path + '/precomputed/working_VisibilityFunc.dat')
 
     def Thermal_sln(self):
+
         self.tb_fileNme = path + '/precomputed/tb_working.dat'
         self.Xe_fileNme = path + '/precomputed/xe_working.dat'
         if not os.path.isfile(self.tb_fileNme) or not os.path.isfile(self.Xe_fileNme):
@@ -154,12 +155,16 @@ class Universe(object):
                 xe_he_list.append(sln)
                 if sln <= (fhe + 1. + 1e-3):
                     fst = False
+                if sln <= (1. + 1e-3):
                     ionizing_he = False
 
             he_xe_tab = np.column_stack((1. / (1. + 10.**np.asarray(lgz_list)), np.asarray(xe_he_list)))
-            tvalsHe = np.linspace(5e3, 1e3, 1000)
-            val_sln_he = odeint(self.heliumI, fhe - 1e-3, tvalsHe)
-            he2_tab = np.asarray([[tvalsHe[i], val_sln_he[i][0]] for i in range(len(val_sln_he)) if val_sln_he[i] > 1e-6])
+            he_xe_tab = he_xe_tab[10.**np.asarray(lgz_list) > 3e3]
+
+            tvalsHe = np.linspace(3e3, 1e3, 1000)
+            val_sln_he = odeint(lambda x,y: self.thermal_funcs(x,y,hydro=False), [fhe - 1e-4, 2.7255 * (1. + tvalsHe[0])], tvalsHe)
+
+            he2_tab = np.asarray([[1. / (1. + tvalsHe[i]), val_sln_he[i,0]] for i in range(len(val_sln_he)) if val_sln_he[i, 0] > 1e-6])
 
             tvals = np.linspace(3e3, 1e-2, 10000)
             y0 = [0.99999, 2.7255 * (1. + tvals[0])]
@@ -170,18 +175,18 @@ class Universe(object):
             tanhV = (fhe + 1.) / 2. * (1. + np.tanh( 2.*((1.+self.zreion)**(3./2.) - (1.+ tvals)**1.5 ) / (3.*0.5*np.sqrt(1.+ tvals)) ))
             zreionHE = 3.5
             tanhV += fhe / 2. * (1. + np.tanh( 2.*((1.+zreionHE)**(3./2.) - (1.+ tvals)**1.5 ) / (3.*0.5*np.sqrt(1.+ tvals)) ))
-            val_sln[:,0] += tanhV
 
-            self.Xe_dark = np.vstack((he_xe_tab, he2_tab,  np.column_stack((avals, val_sln[:,0]))))
+            val_sln[:,0] += tanhV
+            he2_tab_inc = 10.**interp1d(np.log10(he2_tab[:,0]), np.log10(he2_tab[:,1]), fill_value=-100., bounds_error=False, kind='cubic')(np.log10(avals))
+            self.Xe_dark = np.vstack((he_xe_tab, np.column_stack((avals, val_sln[:,0] + he2_tab_inc))))
 
             tvals2 = np.linspace(1e4, 1e-2, 10000)
             termpB = odeint(self.recast_Tb, 2.7255 * (1. + tvals2[0]), tvals2,
                            args=(self.Xe_dark, ))
 
             self.Tb_drk = np.column_stack((1. / (1. + tvals2), termpB))
-            self.Tb_drk = np.column_stack((1. / (1. + tvals), val_sln[:, 1]))
-            np.savetxt(self.tb_fileNme, self.Tb_drk)
 
+            np.savetxt(self.tb_fileNme, self.Tb_drk)
             np.savetxt(self.Xe_fileNme, self.Xe_dark)
         else:
             try:
@@ -219,9 +224,12 @@ class Universe(object):
         units = (1. / 2.998e10)**3.
         return lhs - units * rhpre * rhf
 
-    def thermal_funcs(self, val, z):
+    def thermal_funcs(self, val, z, hydro=True):
         xe, T = val
-        return [self.xeDiff([xe], z, T)[0], self.dotT_normal([T], z, xe)]
+        if hydro:
+            return [self.xeDiff([xe], z, T)[0], self.dotT_normal([T], z, xe)]
+        else:
+            return [self.xeDiff_he([xe], z, T)[0], self.dotT_normal([T], z, xe)]
 
     def heliumI(self, val, z):
         return self.xeDiff_he(val, z)
@@ -303,12 +311,12 @@ class Universe(object):
 
         return [preFac*aval/hub*(-(1.-val[0])*beta*np.exp(-epG/(kb*tgas)) + val[0]**2.*n_b*(1.-Yp)*alphaH)*Mpc_to_cm]
 
-    def xeDiff_he(self, val, y):
-        tgas = 2.7225 * (1. + y)
+    def xeDiff_he(self, val, y, tgas):
+        # tgas = 2.7225 * (1. + y)
         ep0 =  24.6 # eV
-        nu_2s = 2.998e8 / 60.1404e-9
-        nu_2p = 2.998e8 / 58.4334e-9
-        nu_diff2 = nu_2p - nu_2s
+        nu_2s = 20.6 # 2.998e8 / 60.1404e-9 * 4.135e-15
+        nu_2p = 2.998e8 / 58.4334e-9 * 4.135e-15
+        nu_diff2 =  (nu_2p - ep0)
         kb = 8.617e-5 # ev/K
         Mpc_to_cm = 3.086e24
         me = 5.11e5 # eV
@@ -317,15 +325,15 @@ class Universe(object):
         fhe = Yp / (4. * (1. - Yp))
         n_b = self.n_bary / aval**3.
         hub = self.hubble(aval)
-        alphaH = 10.**16.744 / (np.sqrt(tgas / 3.)*(1.+tgas/3.)**(1.-0.711)*(1.+tgas/10.**5.114)**(1.+0.711)) * 1e6 / 2.998e10 # cm^2
-        beta = alphaH*(2.*np.pi*me*kb*tgas/4.135e-15**2.)**(3./2.) / 2.998e10**3. * np.exp(-4.135e-15 * nu_2s/(kb*tgas)) # 1/cm
+        alphaH = 10.**-16.744 / (np.sqrt(tgas / 3.)*(1.+tgas/3.)**(1.-0.711)*(1.+tgas/10.**5.114)**(1.+0.711)) * 1e6 / 2.998e10 # cm^2
+        beta = alphaH*(2.*np.pi*me*kb*tgas/4.135e-15**2.)**(3./2.) / 2.998e10**3 * np.exp(-(ep0 - nu_2s) /(kb*tgas))  # 1/cm
 
         kh = (58.4334e-9)**3./(8.*np.pi*hub) * 1e6 # cm^3 * Mpc
         lambH = 51.3 / 2.998e10 * Mpc_to_cm # 1 / Mpc
-        preFac = (1. + kh *lambH * n_b * (1. - Yp) * (fhe - val[0]) * np.exp(- 4.135e-15 * nu_diff2 / (kb*tgas)))  # unitless
-        preFac /= (1. + kh * (lambH+beta*Mpc_to_cm) * n_b * (1. - Yp) * (fhe - val[0])*np.exp(- 4.135e-15 * nu_diff2 / (kb*tgas))) # Unitless
+        preFac = (1. + kh *lambH * n_b * (1-Yp) * (fhe - val[0]) * np.exp(- nu_diff2 / (kb*tgas)))  # unitless
+        preFac /= (1. + kh * (lambH + beta * Mpc_to_cm) * n_b * (1-Yp) * (fhe - val[0]) * np.exp(- nu_diff2 / (kb*tgas))) # Unitless
 
-        return [preFac*aval/hub*(val[0]*(1. + val[0])*n_b*(1.-Yp)*alphaH  -  (fhe - val[0])*beta*np.exp(-4.135e-15 *nu_2s/(kb*tgas)) )*Mpc_to_cm]
+        return [preFac*aval/hub*(val[0]*(1. + val[0])*n_b*(1-Yp)*alphaH  -  (fhe - val[0])*beta*np.exp(-nu_2s / (kb*tgas)))*Mpc_to_cm]
 
 
     def tau_functions(self):
@@ -398,10 +406,6 @@ class Universe(object):
         cdef double eta_st = np.min([1e-3/self.k, 1e-1/0.7]) # Initial conformal time in Mpc
 
         cdef double y_st = log(self.ct_to_scale(eta_st))
-
-        #eta_st = self.conform_T(exp(y_st))
-        #self.scale_to_ct(log10(exp(y_st)))
-
         self.init_conds(eta_st, exp(y_st))
         self.eta_vector = [eta_st]
         self.y_vector = [y_st]
@@ -515,7 +519,8 @@ class Universe(object):
             sources[i, 3] = ((self.Psi_vec[i] - psi_term_back) - (self.combined_vector[0][i] - phi_term_back)) / \
                     (self.eta_vector[i] - eta_back)
         sources[:, 1] = [self.combined_vector[5][i] + self.Psi_vec[i] for i in range(len(self.eta_vector))]
-#        sources[:, 1] = [self.combined_vector[5][i] + self.Psi_vec[i] + pi_polar[i] / 4. + der2_pi[i] for i in range(len(self.eta_vector))]
+#        sources[:, 1] = [self.combined_vector[5][i] + self.Psi_vec[i] + pi_polar[i] / 4. +
+#                            der2_pi[i] for i in range(len(self.eta_vector))]
 
         source_interp = np.zeros(( len(global_a_list), 4 ))
         s_int_1 = interp1d(sources[:, 0], sources[:, 1], kind='cubic', fill_value=0., bounds_error=False)
@@ -636,10 +641,9 @@ class Universe(object):
             Jma[4,:] += (RR*self.k/(dTa*(1.+RR)**2.)) * Jma[5,:]
 
         # ThetaP 0
-        if a_val < self.tflip_RCA:
-            Jma[6,6] += dTa / (2.*HUB*a_val) * gammaSup
-            Jma[6,11] += - dTa / (2.*HUB*a_val) * gammaSup
-            Jma[6,12] += - dTa / (2.*HUB*a_val) * gammaSup
+        Jma[6,6] += dTa / (2.*HUB*a_val) * gammaSup
+        Jma[6,11] += - dTa / (2.*HUB*a_val) * gammaSup
+        Jma[6,12] += - dTa / (2.*HUB*a_val) * gammaSup
         Jma[6,9] += - self.k / (HUB*a_val) * gammaSup
 
         # Neu 0
@@ -665,50 +669,47 @@ class Universe(object):
         # ThetaP 1
         Jma[9,6] += self.k / (3.*HUB*a_val) * gammaSup
         Jma[9,12] += -2.*self.k / (3.*HUB*a_val) * gammaSup
-        if a_val < self.tflip_RCA:
-            Jma[9,9] += dTa / (HUB*a_val) * gammaSup
+        Jma[9,9] += dTa / (HUB*a_val) * gammaSup
         # Neu 1
         Jma[10,:] += self.k * PsiTerm / (3.*HUB*a_val) * gammaSup
         Jma[10,7] += self.k / (3.*HUB*a_val) * gammaSup
-        if a_val < self.tflip_RCA:
-            Jma[10,13] += -2.*self.k/ (3.*HUB*a_val) * gammaSup
+        Jma[10,13] += -2.*self.k/ (3.*HUB*a_val) * gammaSup
 
         cdef int i, elV, inx
 
-        if a_val < self.tflip_RCA:
-            # Theta 2
-            Jma[11,8] += 2.*self.k / (5.*HUB*a_val) * gammaSup
-            Jma[11,14] += -3.*self.k / (5.*HUB*a_val) * gammaSup
-            Jma[11,11] += 9.*dTa / (10.*HUB*a_val) * gammaSup
-            Jma[11,6] += -dTa / (10.*HUB*a_val) * gammaSup
-            Jma[11,12] += -dTa /(10.*HUB*a_val) * gammaSup
-            # ThetaP 2
-            Jma[12,9] += 2.*self.k / (5.*HUB*a_val) * gammaSup
-            Jma[12,15] += -3.*self.k / (5.*HUB*a_val) * gammaSup
-            Jma[12,12] += 9.*dTa / (10.*HUB*a_val) * gammaSup
-            Jma[12,11] += -dTa / (10.*HUB*a_val) * gammaSup
-            Jma[12,6] += -dTa / (10.*HUB*a_val) * gammaSup
+        # Theta 2
+        Jma[11,8] += 2.*self.k / (5.*HUB*a_val) * gammaSup
+        Jma[11,14] += -3.*self.k / (5.*HUB*a_val) * gammaSup
+        Jma[11,11] += 9.*dTa / (10.*HUB*a_val) * gammaSup
+        Jma[11,6] += -dTa / (10.*HUB*a_val) * gammaSup
+        Jma[11,12] += -dTa /(10.*HUB*a_val) * gammaSup
+        # ThetaP 2
+        Jma[12,9] += 2.*self.k / (5.*HUB*a_val) * gammaSup
+        Jma[12,15] += -3.*self.k / (5.*HUB*a_val) * gammaSup
+        Jma[12,12] += 9.*dTa / (10.*HUB*a_val) * gammaSup
+        Jma[12,11] += -dTa / (10.*HUB*a_val) * gammaSup
+        Jma[12,6] += -dTa / (10.*HUB*a_val) * gammaSup
 
-            # Neu 2
-            Jma[13,10] += 2.*self.k/ (5.*HUB*a_val) * gammaSup
-            Jma[13,16] += -3.*self.k/ (5.*HUB*a_val) * gammaSup
+        # Neu 2
+        Jma[13,10] += 2.*self.k/ (5.*HUB*a_val) * gammaSup
+        Jma[13,16] += -3.*self.k/ (5.*HUB*a_val) * gammaSup
 
-            for i in range(14, 14 + self.Lmax - 3):
-                elV = i - 14 + 3
-                inx = i - 14
-                # Photons
-                Jma[14+3*inx,14+3*inx] += dTa / (HUB*a_val) * gammaSup
-                Jma[14+3*inx,14+3*inx-3] += self.k*elV/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
-                Jma[14+3*inx,14+3*inx+3] += -self.k*(elV+1.)/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
+        for i in range(14, 14 + self.Lmax - 3):
+            elV = i - 14 + 3
+            inx = i - 14
+            # Photons
+            Jma[14+3*inx,14+3*inx] += dTa / (HUB*a_val) * gammaSup
+            Jma[14+3*inx,14+3*inx-3] += self.k*elV/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
+            Jma[14+3*inx,14+3*inx+3] += -self.k*(elV+1.)/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
 
-                # Neutrinos
-                Jma[14+3*inx+2,14+3*inx+2-3] += self.k*elV/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
-                Jma[14+3*inx+2,14+3*inx+2+3] += -self.k*(elV+1.)/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
+            # Neutrinos
+            Jma[14+3*inx+2,14+3*inx+2-3] += self.k*elV/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
+            Jma[14+3*inx+2,14+3*inx+2+3] += -self.k*(elV+1.)/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
 
-                # Polarization
-                Jma[14+3*inx+1,14+3*inx+1] += dTa / (HUB*a_val) * gammaSup
-                Jma[14+3*inx+1,14+3*inx+1-3] += self.k*elV/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
-                Jma[14+3*inx+1,14+3*inx+1+3] += -self.k*(elV+1.)/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
+            # Polarization
+            Jma[14+3*inx+1,14+3*inx+1] += dTa / (HUB*a_val) * gammaSup
+            Jma[14+3*inx+1,14+3*inx+1-3] += self.k*elV/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
+            Jma[14+3*inx+1,14+3*inx+1+3] += -self.k*(elV+1.)/((2.*elV + 1.)*(HUB*a_val)) * gammaSup
 
 
             # Theta Lmax
@@ -757,6 +758,8 @@ class Universe(object):
         return self.omega_nu * self.H_0**2. * a**-4.
 
     def epsilon_test(self, a):
+
+
         cdef double denom = (self.omega_M*a**-3. + self.omega_R*a**-4. + self.omega_L)
         cdef double phiTerm = -2./3.*(self.k/(a*self.H_0))**2.*self.combined_vector[0][-1]
         cdef double denTerm = (self.omega_cdm*self.combined_vector[1][-1]+self.omega_b*self.combined_vector[3][-1])*a**-3. +\
@@ -785,3 +788,23 @@ class Universe(object):
                         np.column_stack((self.aLIST, self.etaLIST, self.xeLIST, self.hubLIST, self.csLIST, self.dtauLIST, self.TbarLIST)))
         return
 
+
+def interp1(double[:] x, double[:] y, double x0):
+    cdef int i = 0
+    cdef double res
+
+    if x0 > x[-1]:
+        return y[-1]
+    if x0 < x[0]:
+        return y[0]
+
+    while (x[i] < x0) and (i <= len(x)):
+        i = i + 1
+
+    if x[i] == x0:
+        return y[i]
+    if i == 0:
+        return y[i] - (y[i+1] - y[i]) * (x0 - x[i]) / (x[i+1] - x[i])
+
+    res = y[i-1] + (y[i] - y[i-1]) * (x0 - x[i-1]) / (x[i] - x[i-1])
+    return res
