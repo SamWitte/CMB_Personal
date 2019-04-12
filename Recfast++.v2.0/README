@@ -1,0 +1,66 @@
+====================================================================================================
+
+Recfast++ (v2.0, May 2018)
+
+====================================================================================================
+This directory contains the flexible cosmological recombination code Recfast++ (v1.2), 
+originally written by Jens Chluba (Oct 2010++), with additions from Luke Hart and Boris Bolliet 
+(The University of Manchester). This code originally started from the old C-version of Recfast 
+by Seager et al. 1999 (this version can be found at https://www.cfa.harvard.edu/~sasselov/rec/ 
+although it is not maintained), but was then strongly rewritten and updated to:
+ 
+- perform the normal Recfast computation (Recfast v1.4.2 with normal helium rec)
+- include the recombination corrections of CosmoRec (Chluba & Thomas 2010). 
+- allow running a simple Dark matter annihilation and decay module (Chluba, 2010, MNRAS, 402).
+- include of primordial magnetic field heating (Chluba et al., 2015, MNRAS, 451, 2244)
+- compute variations of fundamental constants (Hart & Chluba, 2017, 474, 1850-1861)
+
+These tasks are achieved using the simple 3-level approach of Peebles and with appropriate 
+correction function (Rubino-Martin et al, 2010, MNRAS, 403, 439-452). To solve the 
+system of ODE's we use a simplified version of the stiff ODE-solver developed by 
+Chluba, Vasil & Dursi, 2010. This solver allows us to avoid the switches present in the 
+original Recfast-code and hugely increases the flexibility of the code.
+
+When using this code please consider citing:
+
+Chluba & Thomas, 2011, MNRAS, 412, 748-764
+Chluba, Vasil & Dursi, 2010, MNRAS, 407, 599-612
+
+as well as
+
+Chluba, 2010, MNRAS, 402, 1195-1207  (annihilation / decay module)
+Chluba et al., 2015, MNRAS, 451, 2244 (PMF heating)
+Hart & Chluba, 2017, MNRAS, 474, 1850-1861 (variation of fundamental constants)
+
+if the relevant options are used.
+
+====================================================================================================
+
+====================================================================================================
+
+Installation:
+
+To compile the code follow these steps:
+
+(i) in "Makefile" set "CC" to the C++ compiler that should be used (default g++)
+(ii) type "make" to compile the code. This creates the executable: "Recfast++"
+
+To clean up type "make clean" or "make tidy" (see makefile for difference)
+
+====================================================================================================
+
+====================================================================================================
+
+Running the code:
+
+The code is run by invoking
+
+./Recfast++ runfiles/parameters.ini
+
+The output of the code will be written in chosen path (default == './outputs/'). 
+The filenames will depend on the chosen runmode.
+
+The parameter files in ./runfiles contain the cosmological parameters and setting for 
+the different runmodes, as well as explanations.
+
+====================================================================================================

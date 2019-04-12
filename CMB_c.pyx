@@ -149,18 +149,19 @@ class CMB(object):
         return
 
     def clearfiles(self):
-        if os.path.isfile(path + '/precomputed/ln_a_CT_working.dat'):
-            os.remove(path + '/precomputed/ln_a_CT_working.dat')
-
-        if os.path.isfile(path + '/precomputed/xe_working' + self.f_tag + '.dat'):
-            os.remove(path + '/precomputed/xe_working' + self.f_tag + '.dat')
-        if os.path.isfile(path + '/precomputed/tb_working' + self.f_tag + '.dat'):
-            os.remove(path + '/precomputed/tb_working' + self.f_tag + '.dat')
-
-        if os.path.isfile(path + '/precomputed/working_expOpticalDepth' + self.f_tag + '.dat'):
-            os.remove(path + '/precomputed/working_expOpticalDepth' + self.f_tag + '.dat')
-        if os.path.isfile(path + '/precomputed/working_VisibilityFunc' + self.f_tag + '.dat'):
-            os.remove(path + '/precomputed/working_VisibilityFunc' + self.f_tag + '.dat')
+#        if os.path.isfile(path + '/precomputed/ln_a_CT_working.dat'):
+#            os.remove(path + '/precomputed/ln_a_CT_working.dat')
+#
+#        if os.path.isfile(path + '/precomputed/xe_working' + self.f_tag + '.dat'):
+#            os.remove(path + '/precomputed/xe_working' + self.f_tag + '.dat')
+#        if os.path.isfile(path + '/precomputed/tb_working' + self.f_tag + '.dat'):
+#            os.remove(path + '/precomputed/tb_working' + self.f_tag + '.dat')
+#
+#        if os.path.isfile(path + '/precomputed/working_expOpticalDepth' + self.f_tag + '.dat'):
+#            os.remove(path + '/precomputed/working_expOpticalDepth' + self.f_tag + '.dat')
+#        if os.path.isfile(path + '/precomputed/working_VisibilityFunc' + self.f_tag + '.dat'):
+#            os.remove(path + '/precomputed/working_VisibilityFunc' + self.f_tag + '.dat')
+        return
 
     def loadfiles(self, tau=False):
         if not self.multiverse:

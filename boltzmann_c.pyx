@@ -124,18 +124,19 @@ class Universe(object):
         return
 
     def clearfiles(self):
-        if os.path.isfile(path + '/precomputed/ln_a_CT_working.dat'):
-            os.remove(path + '/precomputed/ln_a_CT_working.dat')
-
-        if os.path.isfile(path + '/precomputed/xe_working.dat'):
-            os.remove(path + '/precomputed/xe_working.dat')
-        if os.path.isfile(path + '/precomputed/tb_working.dat'):
-            os.remove(path + '/precomputed/tb_working.dat')
-
-        if os.path.isfile(path + '/precomputed/working_expOpticalDepth.dat'):
-            os.remove(path + '/precomputed/working_expOpticalDepth.dat')
-        if os.path.isfile(path + '/precomputed/working_VisibilityFunc.dat'):
-            os.remove(path + '/precomputed/working_VisibilityFunc.dat')
+#        if os.path.isfile(path + '/precomputed/ln_a_CT_working.dat'):
+#            os.remove(path + '/precomputed/ln_a_CT_working.dat')
+#
+#        if os.path.isfile(path + '/precomputed/xe_working.dat'):
+#            os.remove(path + '/precomputed/xe_working.dat')
+#        if os.path.isfile(path + '/precomputed/tb_working.dat'):
+#            os.remove(path + '/precomputed/tb_working.dat')
+#
+#        if os.path.isfile(path + '/precomputed/working_expOpticalDepth.dat'):
+#            os.remove(path + '/precomputed/working_expOpticalDepth.dat')
+#        if os.path.isfile(path + '/precomputed/working_VisibilityFunc.dat'):
+#            os.remove(path + '/precomputed/working_VisibilityFunc.dat')
+        return
 
     def Thermal_sln(self):
 
@@ -192,6 +193,14 @@ class Universe(object):
             try:
                 self.Tb_drk = np.loadtxt(self.tb_fileNme)
                 self.Xe_dark = np.loadtxt(self.Xe_fileNme)
+
+                tvals = 1. / self.Xe_dark[:,0] - 1.
+                fhe = 0.16381 / 2.
+                tanhV = (fhe + 1.) / 2. * (1. + np.tanh( 2.*((1.+self.zreion)**(3./2.) - (1.+ tvals)**1.5 ) / (3.*0.5*np.sqrt(1.+ tvals)) ))
+                zreionHE = 3.5
+                tanhV += fhe / 2. * (1. + np.tanh( 2.*((1.+zreionHE)**(3./2.) - (1.+ tvals)**1.5 ) / (3.*0.5*np.sqrt(1.+ tvals)) ))
+                self.Xe_dark[:, 1] += tanhV
+
             except:
                 print('fail to load xe and tb dark')
                 raise ValueError

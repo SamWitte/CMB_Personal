@@ -16,9 +16,6 @@ z_reion = 10.
 Om_b_load = 0.0492
 Om_c_load = 0.266
 
-# Modify rho_c
-rho_critical *= (HubbleParam / 100.)**2.
-
 
 Ftag = 'StandardUniverse'
 OM_b = Om_b_load
@@ -52,10 +49,28 @@ if compute_MPS:
 else:
     kgrid = np.logspace(np.log10(kmin), np.log10(kmax), knum)
 
+try:
+    os.remove('precomputed/*')
+except FileNotFoundError:
+    pass
+
+recfast_infile = os.getcwd() + '/Recfast++.v2.0/runfiles/parameters_run.ini'
+replaceAll(recfast_infile, "N_eff =","N_eff = {:.3f}\n".format(Neff))
+replaceAll(recfast_infile, "Omega_m =","Omega_m = {:.3f}\n".format(OM_b + OM_c))
+replaceAll(recfast_infile, "Omega_b =","Omega_b = {:.3f}\n".format(OM_b))
+replaceAll(recfast_infile, "h100 =","h100 = {:.3f}\n".format(HubbleParam/1e2))
+os.system("cd Recfast++.v2.0/")
+os.system("./Recfast++.v2.0/Recfast++ Recfast++.v2.0/runfiles/parameters_run.ini")
+
+recfast_F = np.loadtxt("outputs/Xe_Recfast++.Rec_corrs_CT2010.dat")
+np.savetxt('precomputed/xe_working.dat', np.column_stack((1. / (1. + recfast_F[:,0]), recfast_F[:,1] )))
+np.savetxt('precomputed/tb_working.dat',np.column_stack((1. / (1. + recfast_F[:,0]), recfast_F[:,-1] )))
+os.remove("outputs/Xe_Recfast++.Rec_corrs_CT2010.dat")
+
 SetCMB = CMB(OM_b, OM_c, OM_g, OM_L, kmin=kmin, kmax=kmax, knum=kTotNum, lmax=lmax,
              lvals=1, Ftag=Ftag, lmax_Pert=lmax_Pert,
              HubbleParam=HubbleParam, n_s_index=n_s_index, A_s_norm=A_s_norm,
-             z_reion=z_reion, Neff=Neff, Nbrane=Nbranes, killF=True)
+             z_reion=z_reion, Neff=Neff, killF=True)
 
 def CMB_wrap(kval):
     try:
