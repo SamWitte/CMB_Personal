@@ -218,7 +218,7 @@ class CMB(object):
             else:
                 ManyUni = ManyBrane_Universe(self.Nbrane, k, [self.OM_b, self.OM_b2], [self.OM_c, self.OM_c2],
                                           [self.OM_g, self.OM_g2], [self.OM_L, self.OM_L2],
-                                          [self.OM_nu, self.OM_nu2], accuracy=1e-2,
+                                          [self.OM_nu, self.OM_nu2], accuracy=1e-3,
                                           stepsize=stepsize, lmax=self.lmax_Pert, hubble_c=self.HubbleParam, zreion=self.z_reion)
                 soln = ManyUni.solve_system(compute_TH)
 
