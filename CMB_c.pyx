@@ -25,9 +25,9 @@ cdef extern from "math.h":
 class CMB(object):
 
     def __init__(self, OM_b, OM_c, OM_g, OM_L, kmin=5e-3, kmax=0.5, knum=200,
-                 lmax=2500, lvals=250, Ftag='StandardUniverse', lmax_Pert=5, multiverse=False,
-                 OM_b2=0., OM_c2=0., OM_g2=0., OM_L2=0., HubbleParam=67.77, n_s_index=0.9619,
-                 A_s_norm=3.044, z_reion=10., Neff=3.045, Nbrane=0, killF=False):
+                 lmax=2500, lvals=250, Ftag='StandardUniverse', lmax_Pert=5,
+                 HubbleParam=67.77, n_s_index=0.9619,
+                 A_s_norm=3.044, z_reion=10., Neff=3.045, killF=False):
 
         self.HubbleParam = HubbleParam
         self.n_s_index = n_s_index
@@ -40,34 +40,16 @@ class CMB(object):
         self.OM_g = OM_g
         self.OM_L = OM_L
         self.OM_nu = (7./8) * (4./11.)**(4./3) * Neff * OM_g
+        self.omega_R = self.OM_nu + self.OM_g
+        self.omega_M = self.OM_b + self.OM_c
 
-        self.OM_b2 = OM_b2
-        self.OM_c2 = OM_c2
-        self.OM_g2 = OM_g2
-        self.OM_L2 = OM_L2
-        self.OM_nu2 = (7./8) * (4./11.)**(4./3) * Neff * OM_g2
-
-        self.OM_M = self.OM_b + self.OM_c + (self.OM_c2 + self.OM_b2) * Nbrane
-        self.OM_R = self.OM_g  + self.OM_nu + (self.OM_g2 + self.OM_nu2) * Nbrane
-        self.OM_Lam = self.OM_L + self.OM_L2 * Nbrane
-
-        self.Nbrane = Nbrane
-        if OM_b2 != 0.:
-            self.PressFac = (OM_g2 / OM_b2) / (OM_g / OM_b2)
-        else:
-            self.PressFac = 0.
-
-        self.eCDM = OM_c + OM_c2 * Nbrane
 
         self.kmin = kmin
         self.kmax = kmax
         self.knum = knum
         self.k_remove = []
         self.Ftag = Ftag
-        if multiverse:
-            self.f_tag = '_Nbranes_{:.0e}_PressFac_{:.2e}_eCDM_{:.2e}'.format(self.Nbrane, self.PressFac, self.eCDM)
-        else:
-            self.f_tag = ''
+        self.f_tag = ''
 
         self.cparam_tag = '_Ob_{:.4e}_Oc_{:.4e}_H0_{:.4e}_Neff_{:.4e}_Ns_{:.4e}_As_{:.4e}_zreion_{:.2f}_'.format(self.OM_b, self.OM_c,
                     HubbleParam, Neff, n_s_index, A_s_norm, self.z_reion)
@@ -78,7 +60,6 @@ class CMB(object):
         self.lmax_Pert = lmax_Pert
         self.lmin = 10
 
-        self.multiverse = multiverse
         self.init_pert = -1/6.
 
         ell_val = list(range(self.lmin, self.lmax, 20))
@@ -95,10 +76,7 @@ class CMB(object):
             self.loadfiles(tau=False)
 
         self.ThetaFile = path + '/OutputFiles/' + self.Ftag
-        if self.multiverse:
-            self.ThetaFile += '_Nbrane_{:.0e}_PressFac_{:.2e}_eCDM_{:.2e}_ThetaCMB_Table.dat'.format(self.Nbrane, self.PressFac, self.eCDM)
-        else:
-            self.ThetaFile += '_ThetaCMB_Table.dat'
+        self.ThetaFile += '_ThetaCMB_Table.dat'
 
         self.ThetaTabTot = np.zeros((self.knum+1, len(ell_val)))
         self.ThetaTabTot[0,:] = ell_val
@@ -164,25 +142,16 @@ class CMB(object):
         return
 
     def loadfiles(self, tau=False):
-        if not self.multiverse:
-            SingleUni = Universe(1., self.OM_b, self.OM_c, self.OM_g, self.OM_L,
-                                 self.OM_nu, hubble_c=self.HubbleParam, zreion=self.z_reion)
-            self.ct_to_scale = lambda x: SingleUni.ct_to_scale(x)
-            self.scale_to_ct = lambda x: SingleUni.scale_to_ct(x)
-            if tau:
-                SingleUni.tau_functions()
-            self.eta0 = SingleUni.eta_0
-            self.H_0 = SingleUni.H_0
-        else:
-            ManyUni = ManyBrane_Universe(self.Nbrane, 1., [self.OM_b, self.OM_b2], [self.OM_c, self.OM_c2],
-                                          [self.OM_g, self.OM_g2], [self.OM_L, self.OM_L2],
-                                          [self.OM_nu, self.OM_nu2], hubble_c=self.HubbleParam, zreion=self.z_reion)
-            self.ct_to_scale = lambda x: ManyUni.ct_to_scale(x)
-            self.scale_to_ct = lambda x: ManyUni.scale_to_ct(x)
-            if tau:
-                ManyUni.tau_functions()
-            self.eta0 = ManyUni.eta_0
-            self.H_0 = ManyUni.H_0
+
+        SingleUni = Universe(1., self.OM_b, self.OM_c, self.OM_g, self.OM_L,
+                                self.OM_nu, hubble_c=self.HubbleParam, zreion=self.z_reion)
+        self.ct_to_scale = lambda x: SingleUni.ct_to_scale(x)
+        self.scale_to_ct = lambda x: SingleUni.scale_to_ct(x)
+        if tau:
+            SingleUni.tau_functions()
+        self.eta0 = SingleUni.eta_0
+        self.H_0 = SingleUni.H_0
+
         opt_depthL = np.loadtxt(path + '/precomputed/working_expOpticalDepth' + self.f_tag + '.dat')
         self.opt_depth = interp1d(opt_depthL[:,0], opt_depthL[:,1], kind='cubic', bounds_error=False, fill_value=0.)
         visfunc = np.loadtxt(path + '/precomputed/working_VisibilityFunc' + self.f_tag + '.dat')
@@ -210,18 +179,11 @@ class CMB(object):
 
         for k in kgrid:
             stepsize = 1e-2
-            if not self.multiverse:
-                SingleUni = Universe(k, self.OM_b, self.OM_c, self.OM_g, self.OM_L, self.OM_nu,
-                                     stepsize=stepsize, accuracy=1e-3, lmax=self.lmax_Pert,
-                                     hubble_c=self.HubbleParam, zreion=self.z_reion)
-                soln = SingleUni.solve_system(compute_TH)
-            else:
-                ManyUni = ManyBrane_Universe(self.Nbrane, k, [self.OM_b, self.OM_b2], [self.OM_c, self.OM_c2],
-                                          [self.OM_g, self.OM_g2], [self.OM_L, self.OM_L2],
-                                          [self.OM_nu, self.OM_nu2], accuracy=1e-3,
-                                          stepsize=stepsize, lmax=self.lmax_Pert, hubble_c=self.HubbleParam, zreion=self.z_reion)
-                soln = ManyUni.solve_system(compute_TH)
 
+            SingleUni = Universe(k, self.OM_b, self.OM_c, self.OM_g, self.OM_L, self.OM_nu,
+                                    stepsize=stepsize, accuracy=1e-3, lmax=self.lmax_Pert,
+                                    hubble_c=self.HubbleParam, zreion=self.z_reion)
+            soln = SingleUni.solve_system(compute_TH)
         return soln
 
 
@@ -312,15 +274,16 @@ class CMB(object):
         cdef cnp.ndarray[double, ndim=2] CL_table = np.zeros((len(ell_tab), 2))
         cdef double GF, ell
 
-        if not self.multiverse:
-            GF = ( self.OM_M / self.growthFactor(1.))**2.
-        else:
-            GF = ( self.OM_M / self.growthFactor(1.))**2.
+        extraNorm = np.zeros_like(kgrid)
+        for i,k in enumerate(kgrid):
+            eta_st = np.min([1e-3/k, 1e-1/0.7])
+            aval = self.ct_to_scale(eta_st)
+            extraNorm[i] = (1. + 2. * self.OM_nu / (0.75 * aval**2. * self.omega_M + self.omega_R) / 5.)
 
         for i in range(len(ell_tab)):
             ell = ell_tab[i]
             CL_table[i, 0] = ell
-            CL_table[i, 1] =  ell * (ell + 1) * trapz( (ThetaTab[1:, i] / self.init_pert)**2. *
+            CL_table[i, 1] =  ell * (ell + 1) * trapz( (ThetaTab[1:, i] / self.init_pert / extraNorm)**2. *
                                                   (kgrid / 0.05)**(self.n_s_index - 1.) / kgrid, kgrid) * self.A_s
 
             if math.isnan(CL_table[i, 0]):
@@ -331,10 +294,8 @@ class CMB(object):
                 exit()
 
         Cl_name = path + '/OutputFiles/' + self.Ftag + '_CL_Table' + self.cparam_tag
-        if self.multiverse:
-            Cl_name += '_Nbrane_{:.0e}_PressFac_{:.2e}_eCDM_{:.2e}.dat'.format(self.Nbrane, self.PressFac, self.eCDM)
-        else:
-            Cl_name += '.dat'
+
+        Cl_name += '.dat'
         np.savetxt(Cl_name, CL_table)
         return
 
