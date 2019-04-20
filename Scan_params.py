@@ -48,5 +48,9 @@ for sample in sample_list:
     replaceAll(launch_file,"A_s_norm =", "A_s_norm = {:.4e} \n".format(As))
                         
     os.system("python " + launch_file)
+    try:
+        os.system('rm precomputed/*.dat')
+    except FileNotFoundError:
+        continue
 
 print('Done.')
